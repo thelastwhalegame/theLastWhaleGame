@@ -1,3 +1,4 @@
+##TG BOT
 import json
 from web3 import Web3
 from datetime import datetime
@@ -144,6 +145,7 @@ menu_keyboard.add(types.KeyboardButton("/balance"))
 menu_keyboard.add(types.KeyboardButton("/endTime"))
 menu_keyboard.add(types.KeyboardButton("/gameStatus"))
 menu_keyboard.add(types.KeyboardButton("/winner"))
+menu_keyboard.add(types.KeyboardButton("/status"))
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
@@ -187,6 +189,27 @@ async def winner_status(message: types.Message):
     try:
         result = interact_with_contract_currentWinner(API_URL, API_KEY, CONTRACT_ADDRESS)
         await send_telegram_message(f"https://testnet.bscscan.com/address/{result}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        await send_telegram_message(f"An error occurred: {e}")
+
+
+@dp.message_handler(commands=['status'])
+async def game_status(message: types.Message):
+    try:
+        balance_result = interact_with_contract_balance(API_URL, API_KEY, CONTRACT_ADDRESS)
+        end_time_result = interact_with_contract_endTime(API_URL, API_KEY, CONTRACT_ADDRESS)
+        game_status_result = interact_with_contract(API_URL, API_KEY, CONTRACT_ADDRESS)
+        winner_result = interact_with_contract_currentWinner(API_URL, API_KEY, CONTRACT_ADDRESS)
+
+        status_message = (
+            f"Game status: {'Game over' if game_status_result else 'The game is active'}\n"
+            f"Treasury balance: {balance_result}\n"
+            f"Game end time (UTC): {end_time_result}\n"
+            f"Current winner: https://testnet.bscscan.com/address/{winner_result}"
+        )
+
+        await send_telegram_message(status_message)
     except Exception as e:
         print(f"An error occurred: {e}")
         await send_telegram_message(f"An error occurred: {e}")
