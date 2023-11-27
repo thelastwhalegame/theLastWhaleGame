@@ -1,14 +1,56 @@
 ##TG BOT
 import json
+import sqlite3
 from web3 import Web3
 from datetime import datetime
 import requests
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from configProd import API_URL, API_KEY, CONTRACT_ADDRESS, WEB3_PROVIDER_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, RPC_URL
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher(bot)
+
+def write_to_sqlite(data):
+    try:
+        # Connect to SQLite database (or create it if it doesn't exist)
+        connection = sqlite3.connect('game_data.db')
+        cursor = connection.cursor()
+
+        # Check if the table exists, create it if not
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS game_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_status TEXT,
+                treasury_balance TEXT,
+                game_end_time_utc TEXT,
+                current_winner TEXT
+            )
+        ''')
+
+        # Check if there is an existing record
+        cursor.execute('SELECT * FROM game_status')
+        existing_record = cursor.fetchone()
+
+        if existing_record:
+            # Update the existing record
+            cursor.execute('''
+                UPDATE game_status
+                SET game_status=?, treasury_balance=?, game_end_time_utc=?, current_winner=?
+            ''', (data[0], data[1], data[2], data[3]))
+        else:
+            # Insert a new record
+            cursor.execute('''
+                INSERT INTO game_status (game_status, treasury_balance, game_end_time_utc, current_winner)
+                VALUES (?, ?, ?, ?)
+            ''', (data[0], data[1], data[2], data[3]))
+
+        # Commit the changes and close the connection
+        connection.commit()
+        connection.close()
+
+        return "Data written to SQLite database successfully!"
+    except Exception as e:
+        return f"An error occurred: {e}"
 
 def interact_with_contract_balance(api_url, api_key, contract_address):
     params = {"module": "contract", "action": "getabi", "address": contract_address, "apikey": api_key}
@@ -106,7 +148,6 @@ def interact_with_contract(api_url, api_key, contract_address):
     else:
         return f"Error: HTTP request failed with status code {response.status_code}"
 
-
 def interact_with_contract_currentWinner(api_url, api_key, contract_address):
     params = {
         "module": "contract",
@@ -141,11 +182,11 @@ def interact_with_contract_currentWinner(api_url, api_key, contract_address):
         return f"Error: HTTP request failed with status code {response.status_code}"
 
 menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+menu_keyboard.add(types.KeyboardButton("/status"))
+menu_keyboard.add(types.KeyboardButton("/winner"))
 menu_keyboard.add(types.KeyboardButton("/balance"))
 menu_keyboard.add(types.KeyboardButton("/endTime"))
 menu_keyboard.add(types.KeyboardButton("/gameStatus"))
-menu_keyboard.add(types.KeyboardButton("/winner"))
-menu_keyboard.add(types.KeyboardButton("/status"))
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
@@ -171,7 +212,6 @@ async def get_balance(message: types.Message):
         print(f"An error occurred: {e}")
         await send_telegram_message(f"An error occurred: {e}")
 
-
 @dp.message_handler(commands=['gameStatus'])
 async def game_status(message: types.Message):
     try:
@@ -193,7 +233,6 @@ async def winner_status(message: types.Message):
         print(f"An error occurred: {e}")
         await send_telegram_message(f"An error occurred: {e}")
 
-
 @dp.message_handler(commands=['status'])
 async def game_status(message: types.Message):
     try:
@@ -202,14 +241,17 @@ async def game_status(message: types.Message):
         game_status_result = interact_with_contract(API_URL, API_KEY, CONTRACT_ADDRESS)
         winner_result = interact_with_contract_currentWinner(API_URL, API_KEY, CONTRACT_ADDRESS)
 
+        # Отправляем сообщение в Telegram
         status_message = (
             f"Game status: {'Game over' if game_status_result else 'The game is active'}\n"
             f"Treasury balance: {balance_result}\n"
             f"Game end time (UTC): {end_time_result}\n"
             f"Current winner: https://testnet.bscscan.com/address/{winner_result}"
         )
-
         await send_telegram_message(status_message)
+
+        # Записываем или обновляем данные в базе данных SQLite
+        write_to_sqlite([game_status_result, balance_result, end_time_result, winner_result])
     except Exception as e:
         print(f"An error occurred: {e}")
         await send_telegram_message(f"An error occurred: {e}")
