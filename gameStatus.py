@@ -56,10 +56,22 @@ async def balance(ctx):
 
     try:
         result = interact_with_contract(api_url, api_key, contract_address)
-        if result:
-            await ctx.send("Game over")
+
+        # ID вашего канала
+        target_channel_id = 1175792763942486026  # Замените на ID вашего канала
+
+        # Получаем объект канала
+        target_channel = bot.get_channel(target_channel_id)
+
+        if target_channel:
+            if result:
+                await target_channel.send("Game over")
+            else:
+                await target_channel.send("The game is active")
+            await ctx.send("Message sent to the target channel.")
         else:
-            await ctx.send("The game is active")
+            print(f"Channel not found.")
+            await ctx.send("Failed to send message to the target channel.")
     except Exception as e:
         print(f"An error occurred: {e}")
         await ctx.send(f"An error occurred: {e}")

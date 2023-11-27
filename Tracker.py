@@ -9,6 +9,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
+target_channel_id = 1175546512693002405
 
 # Connect to the SQLite database
 conn = sqlite3.connect('transactions.db')
@@ -49,7 +50,7 @@ async def check_transactions():
         for tx in transactions:
             # Check if the transaction has been processed
             if not is_transaction_processed(tx['hash']):
-                channel = global_ctx  # Use the saved context
+                channel = bot.get_channel(target_channel_id)  # Use the saved context
                 if channel:
                     balance = await get_bsc_balance()  # No need to pass the context
                     await channel.send(
